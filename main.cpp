@@ -1,9 +1,6 @@
 
 #include "main.h"
 
-// 비트맵을 로드하는 함수 원형
-HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRenderTarget, IWICImagingFactory* pIWICFactory, PCWSTR uri, UINT destinationWidth, UINT destinationHeight, ID2D1Bitmap** ppBitmap);
-
 
 class DemoApp
 {
@@ -36,14 +33,17 @@ private:
 
 	IWICImagingFactory* pWICFactory; //image
 	ID2D1Bitmap* pPlayerImage;
+	ID2D1Bitmap* pHeyHoImage;
 	ID2D1Bitmap* pMapImage;
 	ID2D1Bitmap* pKeyImage;
 	ID2D1Bitmap* pScoreImage;
 
 	Player yoshi;
+	vector<HeyHo> heyhos;
+
 	int count;
 	int frame_count;
-	
+
 	float block_point[2];
 
 
@@ -94,8 +94,8 @@ DemoApp::DemoApp() :
 
 	count = 0;
 	frame_count = 0;
-	block_point[0] = 170.0f;
-	block_point[1] = 800.0f;
+	block_point[0] = BLOCK_L_1F;
+	block_point[1] = BLOCK_R_1F;
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
 DemoApp::~DemoApp()
@@ -185,6 +185,7 @@ HRESULT DemoApp::CreateDeviceResource()
 	if (FAILED(hr)) return hr;
 
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 300, 0, &pPlayerImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\heyho0.png", 245, 245, &pHeyHoImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\realBackground.png", 1080,720, &pMapImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\key.png", 1383, 826, &pKeyImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
@@ -204,7 +205,7 @@ void DemoApp::DiscardDeviceResource()
 // 그릴 내용을 화면에 그림.
 void DemoApp::OnPaint()
 {
-	setYoshiLoc();
+	setYoshiLoc(); //1
 
 	HRESULT hr = CreateDeviceResource();
 	if (FAILED(hr)) return;
@@ -431,17 +432,17 @@ HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRenderTarget, IWICImagingFactory*
 void DemoApp::moveYoshi(char key) {
 
 	if (key == 'W') {
-		if (yoshi.getY() > 330.0f && yoshi.getX() > 323.0f && yoshi.getX() < 680.0f) {
+		if (yoshi.getY() > DEFAULT_Y_LOC_2F && yoshi.getX() > BLOCK_L_2F && yoshi.getX() < 680.0f) {
 			yoshi.setY(yoshi.getY() - 185.0f);
-			block_point[0] = 323.0f;
+			block_point[0] = BLOCK_L_2F;
 			block_point[1] = 680.0f;
 		}
 	}
 	else if (key == 'S') {
-		if (yoshi.getY() < 330.0f) {
-			yoshi.setY(393.0f);
-			block_point[0] = 170.0f;
-			block_point[1] = 800.0f;
+		if (yoshi.getY() < DEFAULT_Y_LOC_1F) {
+			yoshi.setY(DEFAULT_Y_LOC_1F);
+			block_point[0] = BLOCK_L_1F;
+			block_point[1] = BLOCK_R_1F;
 		}
 	}
 	else {
@@ -490,11 +491,11 @@ void DemoApp::setYoshiLoc() {
 
 	//윗 바닥 기울기 조정
 	if (yoshi.getY() < 330.0f) {
-		yoshi.setY(208.0f + (yoshi.getX() - 323.0f) * 0.05f);
+		yoshi.setY(DEFAULT_Y_LOC_2F + (yoshi.getX() - BLOCK_L_2F) * 0.05f);
 	}
 	//아랫 바닥 기울기 조정
 	else{
-		yoshi.setY(400.0f - abs(yoshi.getX() - 500.0f) * 0.05f);
+		yoshi.setY(DEFAULT_Y_LOC_1F - abs(yoshi.getX() - 500.0f) * 0.10f);
 	}
 
 }
