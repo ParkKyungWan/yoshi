@@ -130,8 +130,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Egg.h" />
     <ClInclude Include="heyho.h" />
-    <ClInclude Include="hyeHoController.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="Player.h" />
   </ItemGroup>

@@ -12,6 +12,7 @@
 
 #include "Player.h"
 #include "HeyHo.h"
+#include "Egg.h"
 
 using namespace std;
 #include <stdio.h>

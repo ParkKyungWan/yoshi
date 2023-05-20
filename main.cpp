@@ -8,6 +8,7 @@ public:
 	DemoApp();
 	~DemoApp(); //모든 자원을 반납
 	HRESULT Initialize(HINSTANCE hInstance); //윈도우 생성, CreateAppResource() 호출
+	HeyHo createHeyHo(Player p);
 private:
 	HRESULT CreateAppResource(); //장치 독립적 그리기 자원을 생성
 	HRESULT CreateDeviceResource(); //장치 의존 자원을 생성
@@ -19,6 +20,13 @@ private:
 	void stopYoshi();
 	void setYoshiLoc();
 	void setYoshiImg();
+	void stopThrowing();
+
+	void heyHoForOneFrame();
+	Player getP();
+
+	void eggAction();
+	void write_loc();
 
 private:
 	//클래스의 변수들을 선언
@@ -34,18 +42,29 @@ private:
 	IWICImagingFactory* pWICFactory; //image
 	ID2D1Bitmap* pPlayerImage;
 	ID2D1Bitmap* pHeyHoImage;
+	ID2D1Bitmap* pEggImage;
 	ID2D1Bitmap* pMapImage;
 	ID2D1Bitmap* pKeyImage;
 	ID2D1Bitmap* pScoreImage;
 
 	Player yoshi;
 	vector<HeyHo> heyhos;
+	HeyHo heyho;
+	Egg egg;
+
+	// 알 위치 계산용
+	float _ploc[5][2];
+	int egg_amount;
+
 
 	int count;
 	int frame_count;
 
 	float block_point[2];
 
+	int heyho_regen;
+	int egg_regen;
+	float egg_depth;
 
 
 
@@ -70,6 +89,7 @@ DemoApp::DemoApp() :
 	pPlayerImage(NULL),
 	pWICFactory(NULL),
 	yoshi(),
+	heyho(),
 	pMapImage(NULL)
 
 
@@ -96,6 +116,11 @@ DemoApp::DemoApp() :
 	frame_count = 0;
 	block_point[0] = BLOCK_L_1F;
 	block_point[1] = BLOCK_R_1F;
+
+	heyho_regen = 4000;
+	egg_regen = 2000;
+	egg_depth = 80;
+
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
 DemoApp::~DemoApp()
@@ -141,6 +166,8 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
 	ShowWindow(hwnd, SW_SHOWNORMAL);
 	UpdateWindow(hwnd);
 
+
+
 	return hr;
 }
 // 장치 독립적 자원들을 생성함. 이들 자원의 수명은 응용 프로그램이 종료되기 전까지 유효함.
@@ -184,14 +211,20 @@ HRESULT DemoApp::CreateDeviceResource()
 	// 외부 파일로부터 비트맵 객체 pAnotherBitmap를 생성함.
 	if (FAILED(hr)) return hr;
 
-	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 300, 0, &pPlayerImage);
-	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\heyho0.png", 245, 245, &pHeyHoImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0.png", 245, 245, &pHeyHoImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\egg\\yoshi_egg.png", 256, 255, &pEggImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\realBackground.png", 1080,720, &pMapImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\key.png", 1383, 826, &pKeyImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
 
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
+	//heyho 정의
+	heyho = HeyHo(pHeyHoImage, yoshi.getX(),yoshi.getY());
+	heyhos.push_back(heyho);
+	//egg 정의
+	egg = Egg(pEggImage);
 
 	return hr;
 }
@@ -221,16 +254,33 @@ void DemoApp::OnPaint()
 	GetClientRect(hwnd, &rc);
 
 	//맵 그림
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(0.0f, 0.0f));
 	pRenderTarget->DrawBitmap(pMapImage, D2D1::RectF(0.0f, 0.0f, rc.right - rc.left, rc.bottom - rc.top), 0.84f);
-	
+
+	//알 그림
+	float addsome = (yoshi.getDirection() == 'D') ? -30.0f : +50.0f; // 알 위치
+	float addsome2 = (yoshi.getDirection() == 'D') ? -15.0f : +15.0f; //알 간격
+	for (int i = 1; i <= egg_amount; i++) {
+		int j = egg_amount - i;
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation( _ploc[j][0] + addsome + addsome2*(i-1), _ploc[j][1] + 60.0f));
+		pRenderTarget->DrawBitmap(pEggImage, D2D1::RectF(0.0f, 0.0f, egg.getSize()[0], egg.getSize()[1]));
+	}
 
 	//요시 그림
-	pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(yoshi.getX(), yoshi.getY(), yoshi.getSize()[0], yoshi.getSize()[1]));
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(yoshi.getX(), yoshi.getY()));
+	pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(0.0f, 0.0f,
+		yoshi.isThrowing() ? yoshi.getSize()[0] + 14.0f: yoshi.getSize()[0],
+		yoshi.getSize()[1]));
+
+	//헤이호 컨트롤
+	heyHoForOneFrame();
 
 	//키 도움말 그림
-	pRenderTarget->DrawBitmap(pKeyImage, D2D1::RectF(20.0f, 530.0f, 213.0f + 20.0f, 133.0f + 530.0f));
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(20.0f, 530.0f));
+	pRenderTarget->DrawBitmap(pKeyImage, D2D1::RectF(0.0f, 0.0f, 213.0f , 133.0f ));
 	//스코어 전광판 그림
-	pRenderTarget->DrawBitmap(pScoreImage, D2D1::RectF(740.0f, 520.0f, 300.0f + 740.0f, 150.0f + 520.0f));
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f, 520.0f));
+	pRenderTarget->DrawBitmap(pScoreImage, D2D1::RectF(0.0f,0.0f, 300.0f , 150.0f ));
 
 
 
@@ -273,6 +323,10 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)pDemoApp);
 
+		SetTimer(hwnd, 1, 1000 / 60, NULL); //60fps
+		SetTimer(hwnd, 2, pDemoApp->heyho_regen, NULL);
+		SetTimer(hwnd, 3, pDemoApp->egg_regen, NULL);
+		SetTimer(hwnd, 4, pDemoApp->egg_depth, NULL);
 		return 1;
 	}
 
@@ -289,7 +343,6 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		pDemoApp->frame_count = 0;
 	}*/
 
-	pDemoApp->OnPaint();
 	switch (message)
 	{
 	case WM_SIZE:
@@ -313,19 +366,53 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
 	case WM_KEYDOWN:
 	{
-		if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
-
-			pDemoApp->moveYoshi(wParam);
+		if (wParam == VK_SPACE) {
+			pDemoApp->yoshi.ready();
+			pDemoApp->stopYoshi();
+			break;
 		}
-		pDemoApp->OnPaint();
+		if (!pDemoApp->yoshi.isThrowing()) {
+
+			if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
+
+				pDemoApp->moveYoshi(wParam);
+			}
+		}
+
+		//pDemoApp->OnPaint();
 		return 0;
 	}
 	case WM_KEYUP:
 	{
-		if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
-			pDemoApp->stopYoshi();
+		if (wParam == VK_SPACE) {
+			pDemoApp->stopThrowing();
+			pDemoApp->yoshi.throw_egg();
+			break;
 		}
-		pDemoApp->OnPaint();
+
+		if (!pDemoApp->yoshi.isThrowing()) {
+			if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
+				pDemoApp->stopYoshi();
+			}
+		}
+		//pDemoApp->OnPaint();
+		return 0;
+	}
+	case WM_TIMER:
+	{
+		if (wParam == 1) {
+			pDemoApp->OnPaint();
+		}
+		else if (wParam == 2) {
+			pDemoApp->heyhos.push_back(pDemoApp->createHeyHo(pDemoApp->getP()));
+		}
+		else if (wParam == 3) {
+			pDemoApp->eggAction();
+		}
+
+		else if (wParam == 4) {
+			pDemoApp->write_loc();
+		}
 		return 0;
 	}
 	case WM_DESTROY:
@@ -333,7 +420,7 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		PostQuitMessage(0);
 		return 1;
 	}
-
+	
 	}
 
 
@@ -351,6 +438,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
 
 		MSG msg = {};
 
+		
 		while (GetMessage(&msg, NULL, 0, 0))
 		{
 			TranslateMessage(&msg);
@@ -451,11 +539,24 @@ void DemoApp::moveYoshi(char key) {
 }
 void DemoApp::stopYoshi() {
 	yoshi.setNImg('1');
-	if (yoshi.getDir() == 'D') {
-		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 300, 0, &pPlayerImage);
+	if (!yoshi.isThrowing()) {
+		if (yoshi.getDir() == 'D') {
+			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
+		}
+		else if (yoshi.getDir() == 'A') {
+			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 528, 720, &pPlayerImage);
+
+		}
 	}
-	else if (yoshi.getDir() == 'A') {
-		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 300, 0, &pPlayerImage);
+	yoshi.setDir(' ');
+}
+void DemoApp::stopThrowing() {
+	yoshi.setNImg('1');
+	if (yoshi.getDirection() == 'D') {
+		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
+	}
+	else if (yoshi.getDirection() == 'A') {
+		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 528, 720, &pPlayerImage);
 
 	}
 	yoshi.setDir(' ');
@@ -470,7 +571,7 @@ void DemoApp::setYoshiLoc() {
 		yoshi.setX(block_point[1]-1.0f);
 	}
 	char c = yoshi.getDir();
-	float speed = 7.0f;
+	float speed = 8.5f;
 
 	count++;
 	if (count > 6) { // >  뒤 숫자가 높아질수록 이미지 변환 느림
@@ -501,27 +602,106 @@ void DemoApp::setYoshiLoc() {
 }
 void DemoApp::setYoshiImg() {
 
+	if (yoshi.isThrowing()) {
+		if (yoshi.getDirection() == 'D') {
+			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw.png", 528, 720, &pPlayerImage);
+
+		}
+		else {
+
+			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw_l.png", 528, 720, &pPlayerImage);
+		}
+		return;
+	}
 	char nowImg = yoshi.getNImg();
+
 	if (nowImg == '1') {
 		char c = yoshi.getDir();
 		if (c == 'D') {
-			yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 300, 0, &pPlayerImage);
+			yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 528, 720, &pPlayerImage);
 		}
 		else if (c == 'A') {
-			yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 300, 0, &pPlayerImage);
+			yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 528, 720, &pPlayerImage);
 
 		}
 	}
 	else if (nowImg == '2') {
-		yoshi.setNImg('3');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2.png", 300, 0, &pPlayerImage);
+		yoshi.setNImg('3');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2.png", 528, 720, &pPlayerImage);
 	}
 	else if (nowImg == '3') {
-		yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 300, 0, &pPlayerImage);
+		yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 528, 720, &pPlayerImage);
 	}
 	else if (nowImg == '4') {
-		yoshi.setNImg('5');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 300, 0, &pPlayerImage);
+		yoshi.setNImg('5');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 528, 720, &pPlayerImage);
 	}
 	else if (nowImg == '5') {
-		yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 300, 0, &pPlayerImage);
+		yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 528, 720, &pPlayerImage);
 	}
+}
+
+Player DemoApp::getP() {
+	return yoshi;
+}
+HeyHo DemoApp::createHeyHo(Player p) {
+	return HeyHo( pHeyHoImage,p.getX(),p.getY());
+}
+void DemoApp::heyHoForOneFrame() {
+	
+	//헤이호 이미지 변환
+	for ( int i = 0; i < heyhos.size(); i++) {
+
+		int ni = heyhos[i].nextImg();
+		if(heyhos[i].getDirectionX() > 0) {
+
+			if (ni == 0) {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0.png", 245, 245, &pHeyHoImage);
+			}
+			else  if (ni == 1) {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1.png", 245, 245, &pHeyHoImage);
+			}
+			else {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2.png", 245, 245, &pHeyHoImage);
+			}
+		}
+		else {
+
+			if (ni == 0) {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0_l.png", 245, 245, &pHeyHoImage);
+			}
+			else  if (ni == 1) {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1_l.png", 245, 245, &pHeyHoImage);
+			}
+			else {
+				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2_l.png", 245, 245, &pHeyHoImage);
+			}
+		}
+
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation( heyhos[i].getX() , heyhos[i].getY()));
+		pRenderTarget->DrawBitmap(pHeyHoImage, D2D1::RectF(0, 0, heyhos[i].getSize()[0], heyhos[i].getSize()[1]));
+
+		//헤이호 이동
+		heyhos[i].setX(heyhos[i].getX() + heyhos[i].getDirectionX() / heyhos[i].getSpd());
+		heyhos[i].setY(heyhos[i].getY() + heyhos[i].getDirectionY() / heyhos[i].getSpd());
+
+		if (heyhos[i].getX() < -50 || heyhos[i].getX() > 1130 || heyhos[i].getY() < -50 || heyhos[i].getY() > 770) {
+			heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
+			i--;
+		}
+
+	}
+}
+
+void DemoApp::eggAction() {
+	if (egg_amount < 3) {
+		egg_amount++;
+	}
+}
+
+void DemoApp::write_loc() {
+	for (int i = 0; i < 4; i++) {
+		_ploc[i][0] = _ploc[i+1][0];
+		_ploc[i][1] = _ploc[i + 1][1];
+	}
+	_ploc[4][0] = yoshi.getX();
+	_ploc[4][1] = yoshi.getY();
 }
