@@ -40,6 +40,7 @@ public:
 		
 		nowImg = 0;
 		speed = 200.0f;
+
 	
 
 	}

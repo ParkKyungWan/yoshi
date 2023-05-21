@@ -41,7 +41,9 @@ private:
 
 	IWICImagingFactory* pWICFactory; //image
 	ID2D1Bitmap* pPlayerImage;
+	ID2D1Bitmap* playerImages[8];
 	ID2D1Bitmap* pHeyHoImage;
+	ID2D1Bitmap* heyhoImages[6];
 	ID2D1Bitmap* pEggImage;
 	ID2D1Bitmap* pMapImage;
 	ID2D1Bitmap* pKeyImage;
@@ -218,6 +220,26 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\key.png", 1383, 826, &pKeyImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
 
+
+	//헤이호 이미지 전체 정의
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0.png", 245, 245, &heyhoImages[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1.png", 245, 245, &heyhoImages[1]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2.png", 245, 245, &heyhoImages[2]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0_l.png", 245, 245, &heyhoImages[3]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1_l.png", 245, 245, &heyhoImages[4]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2_l.png", 245, 245, &heyhoImages[5]);
+
+
+	//요시 이미지 전체 정의
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 245, 245, &playerImages[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 245, 245, &playerImages[1]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 245, 245, &playerImages[2]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2.png", 245, 245, &playerImages[3]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw.png", 245, 245, &playerImages[4]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 245, 245, &playerImages[5]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 245, 245, &playerImages[6]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw_l.png", 245, 245, &playerImages[7]);
+
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
 	//heyho 정의
@@ -238,7 +260,8 @@ void DemoApp::DiscardDeviceResource()
 // 그릴 내용을 화면에 그림.
 void DemoApp::OnPaint()
 {
-	setYoshiLoc(); //1
+	//요시 움직임을 처리
+	setYoshiLoc(); 
 
 	HRESULT hr = CreateDeviceResource();
 	if (FAILED(hr)) return;
@@ -275,11 +298,12 @@ void DemoApp::OnPaint()
 	//헤이호 컨트롤
 	heyHoForOneFrame();
 
+
 	//키 도움말 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(20.0f, 530.0f));
 	pRenderTarget->DrawBitmap(pKeyImage, D2D1::RectF(0.0f, 0.0f, 213.0f , 133.0f ));
 	//스코어 전광판 그림
-	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f, 520.0f));
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f, 575.0f));
 	pRenderTarget->DrawBitmap(pScoreImage, D2D1::RectF(0.0f,0.0f, 300.0f , 150.0f ));
 
 
@@ -541,10 +565,10 @@ void DemoApp::stopYoshi() {
 	yoshi.setNImg('1');
 	if (!yoshi.isThrowing()) {
 		if (yoshi.getDir() == 'D') {
-			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
+			pPlayerImage = playerImages[0];
 		}
 		else if (yoshi.getDir() == 'A') {
-			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 528, 720, &pPlayerImage);
+			pPlayerImage = playerImages[1];
 
 		}
 	}
@@ -553,10 +577,10 @@ void DemoApp::stopYoshi() {
 void DemoApp::stopThrowing() {
 	yoshi.setNImg('1');
 	if (yoshi.getDirection() == 'D') {
-		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
+		pPlayerImage = playerImages[0];
 	}
 	else if (yoshi.getDirection() == 'A') {
-		LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_l.png", 528, 720, &pPlayerImage);
+		pPlayerImage = playerImages[1];
 
 	}
 	yoshi.setDir(' ');
@@ -604,12 +628,12 @@ void DemoApp::setYoshiImg() {
 
 	if (yoshi.isThrowing()) {
 		if (yoshi.getDirection() == 'D') {
-			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw.png", 528, 720, &pPlayerImage);
+			pPlayerImage = playerImages[4];
 
 		}
 		else {
 
-			LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw_l.png", 528, 720, &pPlayerImage);
+			pPlayerImage = playerImages[7];
 		}
 		return;
 	}
@@ -618,24 +642,30 @@ void DemoApp::setYoshiImg() {
 	if (nowImg == '1') {
 		char c = yoshi.getDir();
 		if (c == 'D') {
-			yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 528, 720, &pPlayerImage);
+			yoshi.setNImg('2');
+			pPlayerImage = playerImages[2];
 		}
 		else if (c == 'A') {
-			yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 528, 720, &pPlayerImage);
+			yoshi.setNImg('4');
+			pPlayerImage = playerImages[5];
 
 		}
 	}
 	else if (nowImg == '2') {
-		yoshi.setNImg('3');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2.png", 528, 720, &pPlayerImage);
+		yoshi.setNImg('3');
+		pPlayerImage = playerImages[3];
 	}
 	else if (nowImg == '3') {
-		yoshi.setNImg('2');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run.png", 528, 720, &pPlayerImage);
+		yoshi.setNImg('2');
+		pPlayerImage = playerImages[2];
 	}
 	else if (nowImg == '4') {
-		yoshi.setNImg('5');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 528, 720, &pPlayerImage);
+		yoshi.setNImg('5');
+		pPlayerImage = playerImages[6];
 	}
 	else if (nowImg == '5') {
-		yoshi.setNImg('4');  LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run_l.png", 528, 720, &pPlayerImage);
+		yoshi.setNImg('4');
+		pPlayerImage = playerImages[5];
 	}
 }
 
@@ -654,25 +684,25 @@ void DemoApp::heyHoForOneFrame() {
 		if(heyhos[i].getDirectionX() > 0) {
 
 			if (ni == 0) {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[0];
 			}
 			else  if (ni == 1) {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[1];
 			}
 			else {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[2];
 			}
 		}
 		else {
 
 			if (ni == 0) {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0_l.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[3];
 			}
 			else  if (ni == 1) {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1_l.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[4];
 			}
 			else {
-				LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2_l.png", 245, 245, &pHeyHoImage);
+				pHeyHoImage = heyhoImages[5];
 			}
 		}
 
@@ -684,7 +714,9 @@ void DemoApp::heyHoForOneFrame() {
 		heyhos[i].setY(heyhos[i].getY() + heyhos[i].getDirectionY() / heyhos[i].getSpd());
 
 		if (heyhos[i].getX() < -50 || heyhos[i].getX() > 1130 || heyhos[i].getY() < -50 || heyhos[i].getY() > 770) {
+			
 			heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
+			
 			i--;
 		}
 
