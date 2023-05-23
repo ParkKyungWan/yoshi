@@ -98,7 +98,7 @@ public:
 	}
 
 	void next() {
-		pwD += (pwD >= 15.0f) ? 0.0f : 0.6f;
+		pwD += (pwD >= 15.0f) ? 0.0f : 0.5f;
 		xloc += pwS * direction;
 		yloc += pwD;
 	}

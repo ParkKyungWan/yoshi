@@ -30,6 +30,9 @@ private:
 	void eggAction();
 	void write_loc();
 
+	void power_targeting();
+
+
 private:
 	//클래스의 변수들을 선언
 	HWND hwnd;
@@ -37,6 +40,7 @@ private:
 	ID2D1HwndRenderTarget* pRenderTarget;
 	ID2D1SolidColorBrush* pLightSlateGrayBrush;
 	ID2D1SolidColorBrush* pBlackBrush;
+	ID2D1SolidColorBrush* pRedbrush;
 
 	IDWriteTextFormat* pTextFormat; //text
 	IDWriteFactory* pDWriteFactory;
@@ -50,6 +54,8 @@ private:
 	ID2D1Bitmap* pMapImage;
 	ID2D1Bitmap* pKeyImage;
 	ID2D1Bitmap* pScoreImage;
+	ID2D1Bitmap* pTargetImageR;
+	ID2D1Bitmap* pTargetImageL;
 
 	Player yoshi;
 	vector<HeyHo> heyhos;
@@ -71,6 +77,12 @@ private:
 	int heyho_regen;
 	int egg_regen;
 	float egg_depth;
+
+	float power;
+	float max_power;
+	float power_dir;
+
+	int hp;
 
 
 
@@ -126,6 +138,11 @@ DemoApp::DemoApp() :
 	heyho_regen = 4000;
 	egg_regen = 2000;
 	egg_depth = 80;
+
+	power = 0.0f;
+	max_power = 15.f;
+	power_dir = 1.0f;
+	hp = 10;
 
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
@@ -223,6 +240,8 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\realBackground.png", 1080,720, &pMapImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\key.png", 1383, 826, &pKeyImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\target.png", 907, 692, &pTargetImageR);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\target_l.png", 907, 692, &pTargetImageL);
 
 
 	//헤이호 이미지 전체 정의
@@ -247,6 +266,8 @@ HRESULT DemoApp::CreateDeviceResource()
 
 	//blackbrush 정의
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
+	//redbrush 정의
+	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red), &pRedbrush);
 
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
@@ -297,17 +318,21 @@ void DemoApp::OnPaint()
 		pRenderTarget->DrawBitmap(pEggImage, D2D1::RectF(0.0f, 0.0f, egg.getSize()[0], egg.getSize()[1]));
 	}
 
+	if (yoshi.isThrowing()) {
+		power_targeting();
+	}
+
 	//요시 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(yoshi.getX(), yoshi.getY()));
 	pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(0.0f, 0.0f,
 		yoshi.isThrowing() ? yoshi.getSize()[0] + 14.0f: yoshi.getSize()[0],
 		yoshi.getSize()[1]));
 
-	//헤이호 컨트롤
-	heyHoForOneFrame();
-
 	//던져진 알 컨트롤
 	ThrwdEggForOneFrame();
+
+	//헤이호 컨트롤
+	heyHoForOneFrame();
 
 
 	//키 도움말 그림
@@ -395,7 +420,7 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 	case WM_KEYDOWN:
 	{
 		if (wParam == VK_SPACE) {
-			if (pDemoApp->egg_amount > 0) {
+			if (pDemoApp->egg_amount > 0&& !pDemoApp->yoshi.isThrowing()) {
 				pDemoApp->egg_amount--;
 				pDemoApp->yoshi.ready();
 				pDemoApp->stopYoshi();
@@ -771,6 +796,26 @@ void DemoApp::ThrwdEggForOneFrame() {
 
 void DemoApp::yoshi_throw() {
 	stopThrowing(); 
-	thrwd_eggs.push_back(Thrwd_Egg(pEggImage, yoshi.getX(), yoshi.getY(), 20.0f, -7.0f, yoshi.getDirection() == 'D' ? +1.0f : -1.0f));
+	thrwd_eggs.push_back(Thrwd_Egg(pEggImage, yoshi.getX(), yoshi.getY(), 15.0f, ((yoshi.getDirection()=='A')? - 1.0f:1.0f) * power - 6.0f, yoshi.getDirection() == 'D' ? +1.0f : -1.0f));
 	yoshi.throw_egg();
 	}
+
+void DemoApp::power_targeting() {
+
+	power += 1.0f * power_dir;
+	if (power > max_power || power < -1.0f * max_power) {
+		power_dir *= -1.0f;
+	}
+
+	if( yoshi.getDirection() == 'D') {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Rotation(power * 3.0f+22.5f,
+			D2D1::Point2F(0.0f, 100.0f)) * D2D1::Matrix3x2F::Translation(yoshi.getX()+75.0f, yoshi.getY()-55.0f));
+		pRenderTarget->DrawBitmap(pTargetImageR, D2D1::RectF(0.0f, 0.0f, 130.0f, 100.0f)); 
+	}
+	else {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Rotation(power * 3.0f-22.5f,
+			D2D1::Point2F(130.0f, 100.0f)) * D2D1::Matrix3x2F::Translation(yoshi.getX()-125.0f, yoshi.getY() - 50.0f));
+		pRenderTarget->DrawBitmap(pTargetImageL, D2D1::RectF(0.0f, 0.0f, 130.0f, 100.0f));
+	}
+	
+}
