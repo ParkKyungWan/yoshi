@@ -93,6 +93,16 @@ public:
 	int getRnd() {
 		return rand;
 	}
+
+	bool isDamaged(float x, float y) {
+		if (xloc < x && xloc+width > x && yloc < y && yloc+height > y ) {
+			return true;
+
+		}
+		else {
+			return false;
+		}
+	}
 private:
 
 	float width, height;
@@ -104,4 +114,13 @@ private:
 
 
 
+
+};
+
+
+struct dead_point {
+	float dir;
+	float x;
+	float y;
+	int count;
 };

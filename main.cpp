@@ -31,6 +31,7 @@ private:
 	void write_loc();
 
 	void power_targeting();
+	void draw_dead_heyho();
 
 
 private:
@@ -49,7 +50,7 @@ private:
 	ID2D1Bitmap* pPlayerImage;
 	ID2D1Bitmap* playerImages[8];
 	ID2D1Bitmap* pHeyHoImage;
-	ID2D1Bitmap* heyhoImages[6];
+	ID2D1Bitmap* heyhoImages[8];
 	ID2D1Bitmap* pEggImage;
 	ID2D1Bitmap* pMapImage;
 	ID2D1Bitmap* pKeyImage;
@@ -57,8 +58,12 @@ private:
 	ID2D1Bitmap* pTargetImageR;
 	ID2D1Bitmap* pTargetImageL;
 
+	ID2D1Bitmap* blackwords[10];
+	ID2D1Bitmap* whitewords[10];
+
 	Player yoshi;
 	vector<HeyHo> heyhos;
+	vector<dead_point> heyho_d_points;
 	HeyHo heyho;
 	Egg egg;
 	vector<Thrwd_Egg> thrwd_eggs;
@@ -251,6 +256,8 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0_l.png", 245, 245, &heyhoImages[3]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1_l.png", 245, 245, &heyhoImages[4]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2_l.png", 245, 245, &heyhoImages[5]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh_down.png", 245, 245, & heyhoImages[6]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh_down_l.png", 245, 245, &heyhoImages[7]);
 
 
 	//요시 이미지 전체 정의
@@ -263,6 +270,31 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 245, 245, &playerImages[6]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw_l.png", 245, 245, &playerImages[7]);
 
+	//글자 이미지 전체 정의
+
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\0.png", 426, 522, &blackwords[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\1.png", 426, 522, &blackwords[1]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\2.png", 426, 522, &blackwords[2]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\3.png", 426, 522, &blackwords[3]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\4.png", 426, 522, &blackwords[4]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\5.png", 426, 522, &blackwords[5]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\6.png", 426, 522, &blackwords[6]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\7.png", 426, 522, &blackwords[7]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\8.png", 426, 522, &blackwords[8]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\9.png", 426, 522, &blackwords[9]);
+
+
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\0_w.png", 426, 522, &whitewords[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\1_w.png", 426, 522, &whitewords[1]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\2_w.png", 426, 522, &whitewords[2]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\3_w.png", 426, 522, &whitewords[3]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\4_w.png", 426, 522, &whitewords[4]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\5_w.png", 426, 522, &whitewords[5]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\6_w.png", 426, 522, &whitewords[6]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\7_w.png", 426, 522, &whitewords[7]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\8_w.png", 426, 522, &whitewords[8]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\9_w.png", 426, 522, &whitewords[9]);
+	
 
 	//blackbrush 정의
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
@@ -333,15 +365,25 @@ void DemoApp::OnPaint()
 
 	//헤이호 컨트롤
 	heyHoForOneFrame();
+	draw_dead_heyho();
 
 
 	//키 도움말 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(20.0f, 530.0f));
 	pRenderTarget->DrawBitmap(pKeyImage, D2D1::RectF(0.0f, 0.0f, 213.0f , 133.0f ));
+	
 	//스코어 전광판 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f, 575.0f));
 	pRenderTarget->DrawBitmap(pScoreImage, D2D1::RectF(0.0f,0.0f, 300.0f , 150.0f ));
+	
+	//hp바 그림
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f +85.0f , 575.0f + 15.0f));
+	pRenderTarget->FillRectangle(D2D1::RectF(0.0f, 0.0f, (200.0f/10.0f)*hp, 20.0f), pRedbrush);
 
+	//알이 몇개고
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 250.0f, 575.0f + 45.0f));
+	ID2D1Bitmap* tmpbit = whitewords[egg_amount];
+	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
 
 	
 	hr = pRenderTarget->EndDraw();
@@ -713,6 +755,25 @@ void DemoApp::heyHoForOneFrame() {
 	//헤이호 이미지 변환
 	for ( int i = 0; i < heyhos.size(); i++) {
 
+		//알 맞았는지 확인
+		bool check_damaged = false;
+		for (int j = 0; j < thrwd_eggs.size(); j++) {
+			float tmp_x = thrwd_eggs[j].getX();
+			float tmp_y = thrwd_eggs[j].getY();
+			
+			if (heyhos[i].isDamaged(tmp_x, tmp_y)) { //알 맞음!
+				
+				dead_point dp = { heyhos[i].getDirectionX() ,heyhos[i].getX() ,heyhos[i].getY(), 0 };
+				heyho_d_points.push_back(dp);
+				thrwd_eggs.erase(thrwd_eggs.begin() + j, thrwd_eggs.begin() + j + 1);
+				heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
+				i--;
+				check_damaged = true;
+			}
+		}
+		if (check_damaged) continue; //죽으면 다음 헤이호로 이동
+
+		//헤이호 정상 작업 수행
 		int ni = heyhos[i].nextImg();
 		if(heyhos[i].getDirectionX() > 0) {
 
@@ -818,4 +879,20 @@ void DemoApp::power_targeting() {
 		pRenderTarget->DrawBitmap(pTargetImageL, D2D1::RectF(0.0f, 0.0f, 130.0f, 100.0f));
 	}
 	
+}
+
+void DemoApp::draw_dead_heyho() {
+	for (int i = 0; i < heyho_d_points.size(); i++) {
+		dead_point* dp = &heyho_d_points[i];
+		dp->count += 1;
+		if (dp->count < 24) {
+
+			pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(dp->x, dp->y));
+			pRenderTarget->DrawBitmap( ((dp->dir > 0.0f )? heyhoImages[6] : heyhoImages[7]), D2D1::RectF(0.0f, 0.0f, heyho.getSize()[0]-5.0f, heyho.getSize()[1]-10.0f));
+		}
+		else {
+			heyho_d_points.erase(heyho_d_points.begin() + i, heyho_d_points.begin() + i + 1);
+			i--;
+		}
+	}
 }
