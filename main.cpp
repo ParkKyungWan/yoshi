@@ -72,6 +72,7 @@ private:
 	// 알 위치 계산용
 	float _ploc[5][2];
 	int egg_amount;
+	int max_egg;
 
 
 	int count;
@@ -88,6 +89,8 @@ private:
 	float power_dir;
 
 	int hp;
+	int score;
+	int score_point;//스코어 정산 기준
 
 
 
@@ -141,13 +144,16 @@ DemoApp::DemoApp() :
 	block_point[1] = BLOCK_R_1F;
 
 	heyho_regen = 4000;
-	egg_regen = 2000;
+	egg_regen = 3000;
 	egg_depth = 80;
+	max_egg = 3;
 
 	power = 0.0f;
 	max_power = 15.f;
 	power_dir = 1.0f;
 	hp = 10;
+	score = 0;
+	score_point = 2;
 
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
@@ -380,10 +386,24 @@ void DemoApp::OnPaint()
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f +85.0f , 575.0f + 15.0f));
 	pRenderTarget->FillRectangle(D2D1::RectF(0.0f, 0.0f, (200.0f/10.0f)*hp, 20.0f), pRedbrush);
 
-	//알이 몇개고
-	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 250.0f, 575.0f + 45.0f));
+	//알이 몇개
 	ID2D1Bitmap* tmpbit = whitewords[egg_amount];
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 250.0f, 575.0f + 45.0f));
 	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
+
+	//몇점
+	tmpbit = whitewords[score%10];
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 157.0f, 575.0f + 45.0f));
+	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
+
+	tmpbit = whitewords[(score%100-score%10)/10];
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 142.0f, 575.0f + 45.0f));
+	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
+
+	tmpbit = whitewords[(score-score%100)/100];
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(740.0f + 127.0f, 575.0f + 45.0f));
+	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
+
 
 	
 	hr = pRenderTarget->EndDraw();
@@ -762,8 +782,9 @@ void DemoApp::heyHoForOneFrame() {
 			float tmp_y = thrwd_eggs[j].getY();
 			
 			if (heyhos[i].isDamaged(tmp_x, tmp_y)) { //알 맞음!
-				
-				dead_point dp = { heyhos[i].getDirectionX() ,heyhos[i].getX() ,heyhos[i].getY(), 0 };
+			
+				score += 2;
+				dead_point dp = { (thrwd_eggs[j].getps()* thrwd_eggs[j].getDir()) /1.5f,(thrwd_eggs[j].getpd()) / 1.5f, heyhos[i].getX() ,heyhos[i].getY(), 0};
 				heyho_d_points.push_back(dp);
 				thrwd_eggs.erase(thrwd_eggs.begin() + j, thrwd_eggs.begin() + j + 1);
 				heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
@@ -772,6 +793,7 @@ void DemoApp::heyHoForOneFrame() {
 			}
 		}
 		if (check_damaged) continue; //죽으면 다음 헤이호로 이동
+
 
 		//헤이호 정상 작업 수행
 		int ni = heyhos[i].nextImg();
@@ -807,10 +829,10 @@ void DemoApp::heyHoForOneFrame() {
 		heyhos[i].setX(heyhos[i].getX() + heyhos[i].getDirectionX() / heyhos[i].getSpd());
 		heyhos[i].setY(heyhos[i].getY() + heyhos[i].getDirectionY() / heyhos[i].getSpd());
 
-		if (heyhos[i].getX() < -50 || heyhos[i].getX() > 1130 || heyhos[i].getY() < -50 || heyhos[i].getY() > 770) {
+		if (heyhos[i].getX() < -50 || heyhos[i].getX() > 1130 || heyhos[i].getY() < -50 || heyhos[i].getY() > 770) { //헤이호가 맵 밖으로 넘어감
 			
 			heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
-			
+			score = (score - score_point * 2 < 0) ? 0 : score - score_point * 2; //헤이호를 놓치면 score 깎임
 			i--;
 		}
 
@@ -818,7 +840,7 @@ void DemoApp::heyHoForOneFrame() {
 }
 
 void DemoApp::eggAction() {
-	if (egg_amount < 3) {
+	if (egg_amount < max_egg ) {
 		egg_amount++;
 	}
 }
@@ -885,14 +907,20 @@ void DemoApp::draw_dead_heyho() {
 	for (int i = 0; i < heyho_d_points.size(); i++) {
 		dead_point* dp = &heyho_d_points[i];
 		dp->count += 1;
-		if (dp->count < 24) {
 
-			pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(dp->x, dp->y));
-			pRenderTarget->DrawBitmap( ((dp->dir > 0.0f )? heyhoImages[6] : heyhoImages[7]), D2D1::RectF(0.0f, 0.0f, heyho.getSize()[0]-5.0f, heyho.getSize()[1]-10.0f));
-		}
-		else {
+
+		if (dp->x < -50 || dp->x > 1130 || dp->y < -50 || dp->y > 770) {
 			heyho_d_points.erase(heyho_d_points.begin() + i, heyho_d_points.begin() + i + 1);
-			i--;
+			i--; //맵 탈출 시 삭제
+		}
+		else{
+			dp->x += dp->dirx ;
+			dp->y += dp->diry ;
+			pRenderTarget->SetTransform(
+				D2D1::Matrix3x2F::Rotation( (dp->count+1.0f) * 20.0f * ((dp->dirx) / abs(dp->dirx)), D2D1::Point2F(heyho.getSize()[0] / 2.0f, heyho.getSize()[1]/2.0f))
+				* D2D1::Matrix3x2F::Translation(dp->x, dp->y)); //360도 회전하며 날아감
+
+			pRenderTarget->DrawBitmap( ((dp->dirx < 0.0f )? heyhoImages[6] : heyhoImages[7]), D2D1::RectF(0.0f, 0.0f, (heyho.getSize()[0]-5.0f), (heyho.getSize()[1]-10.0f)));
 		}
 	}
 }

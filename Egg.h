@@ -96,12 +96,22 @@ public:
 	void  setY(float f) {
 		yloc = f;
 	}
+	float getps() {
+		return pwS;
+	}
+	float getpd() {
+		return pwD;
+	}
 
+	float getDir() {
+		return direction;
+	}
 	void next() {
 		pwD += (pwD >= 15.0f) ? 0.0f : 0.5f;
 		xloc += pwS * direction;
 		yloc += pwD;
 	}
+	
 
 private:
 

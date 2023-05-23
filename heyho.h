@@ -119,7 +119,8 @@ private:
 
 
 struct dead_point {
-	float dir;
+	float dirx;
+	float diry;
 	float x;
 	float y;
 	int count;
