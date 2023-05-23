@@ -23,6 +23,8 @@ private:
 	void stopThrowing();
 
 	void heyHoForOneFrame();
+	void ThrwdEggForOneFrame();
+	void yoshi_throw();
 	Player getP();
 
 	void eggAction();
@@ -53,6 +55,8 @@ private:
 	vector<HeyHo> heyhos;
 	HeyHo heyho;
 	Egg egg;
+	vector<Thrwd_Egg> thrwd_eggs;
+	Thrwd_Egg thrwd_egg;
 
 	// 알 위치 계산용
 	float _ploc[5][2];
@@ -240,6 +244,10 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_run2_l.png", 245, 245, &playerImages[6]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_throw_l.png", 245, 245, &playerImages[7]);
 
+
+	//blackbrush 정의
+	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
+
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
 	//heyho 정의
@@ -298,6 +306,9 @@ void DemoApp::OnPaint()
 	//헤이호 컨트롤
 	heyHoForOneFrame();
 
+	//던져진 알 컨트롤
+	ThrwdEggForOneFrame();
+
 
 	//키 도움말 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(20.0f, 530.0f));
@@ -307,22 +318,15 @@ void DemoApp::OnPaint()
 	pRenderTarget->DrawBitmap(pScoreImage, D2D1::RectF(0.0f,0.0f, 300.0f , 150.0f ));
 
 
-
+	
 	hr = pRenderTarget->EndDraw();
 	if (hr == D2DERR_RECREATE_TARGET)
 	{
 		DiscardDeviceResource();
 	}
 
-	/* text
 
-	static const WCHAR helloWorld[] = L"Hello, World!";
-
-	pRenderTarget->DrawText(helloWorld, ARRAYSIZE(helloWorld) - 1,
-		pTextFormat,
-		D2D1::RectF(0, 0, size.width, size.height),
-		pBlackBrush);
-	*/
+	
 }
 // 렌더타겟의 크기를 다시 설정함.
 void DemoApp::OnResize()
@@ -391,8 +395,11 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 	case WM_KEYDOWN:
 	{
 		if (wParam == VK_SPACE) {
-			pDemoApp->yoshi.ready();
-			pDemoApp->stopYoshi();
+			if (pDemoApp->egg_amount > 0) {
+				pDemoApp->egg_amount--;
+				pDemoApp->yoshi.ready();
+				pDemoApp->stopYoshi();
+			}
 			break;
 		}
 		if (!pDemoApp->yoshi.isThrowing()) {
@@ -408,13 +415,13 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 	}
 	case WM_KEYUP:
 	{
-		if (wParam == VK_SPACE) {
-			pDemoApp->stopThrowing();
-			pDemoApp->yoshi.throw_egg();
+		if (pDemoApp->yoshi.isThrowing()&&wParam == VK_SPACE) {
+			pDemoApp->yoshi_throw();
+
 			break;
 		}
 
-		if (!pDemoApp->yoshi.isThrowing()) {
+		else if (!pDemoApp->yoshi.isThrowing()) {
 			if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
 				pDemoApp->stopYoshi();
 			}
@@ -429,6 +436,7 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		}
 		else if (wParam == 2) {
 			pDemoApp->heyhos.push_back(pDemoApp->createHeyHo(pDemoApp->getP()));
+
 		}
 		else if (wParam == 3) {
 			pDemoApp->eggAction();
@@ -737,3 +745,32 @@ void DemoApp::write_loc() {
 	_ploc[4][0] = yoshi.getX();
 	_ploc[4][1] = yoshi.getY();
 }
+
+void DemoApp::ThrwdEggForOneFrame() {
+	for (int i = 0; i < thrwd_eggs.size(); i++) {
+		
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(thrwd_eggs[i].getX(), thrwd_eggs[i].getY()));
+		pRenderTarget->DrawBitmap(pEggImage, D2D1::RectF(0, 0, thrwd_eggs[i].getSize()[0], thrwd_eggs[i].getSize()[1]));
+		
+		if (thrwd_eggs[i].getX() < -50 || thrwd_eggs[i].getX() > 1130 || thrwd_eggs[i].getY() < -50 || thrwd_eggs[i].getY() > 770) {
+
+			thrwd_eggs.erase(thrwd_eggs.begin() + i, thrwd_eggs.begin() + i + 1);
+
+			i--;
+		}
+		else {
+			thrwd_eggs[i].next();
+
+		}
+		
+
+
+	
+	}
+}
+
+void DemoApp::yoshi_throw() {
+	stopThrowing(); 
+	thrwd_eggs.push_back(Thrwd_Egg(pEggImage, yoshi.getX(), yoshi.getY(), 20.0f, -7.0f, yoshi.getDirection() == 'D' ? +1.0f : -1.0f));
+	yoshi.throw_egg();
+	}

@@ -17,6 +17,7 @@
 using namespace std;
 #include <stdio.h>
 #include <vector>
+#include <string>
 
 #ifdef _DEBUG
 #pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console" )
