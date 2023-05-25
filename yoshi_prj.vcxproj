@@ -127,9 +127,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DirectSoundHelper.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DirectSoundHelper.h" />
     <ClInclude Include="Egg.h" />
     <ClInclude Include="heyho.h" />
     <ClInclude Include="main.h" />

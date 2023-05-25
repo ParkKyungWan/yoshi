@@ -1,5 +1,6 @@
 
 #include "main.h"
+#include "DirectSoundHelper.h"
 
 
 class DemoApp
@@ -9,9 +10,12 @@ public:
 	~DemoApp(); //모든 자원을 반납
 	HRESULT Initialize(HINSTANCE hInstance); //윈도우 생성, CreateAppResource() 호출
 	HeyHo createHeyHo(Player p);
+
+
 private:
 	HRESULT CreateAppResource(); //장치 독립적 그리기 자원을 생성
 	HRESULT CreateDeviceResource(); //장치 의존 자원을 생성
+	void CreateAppResource2(); //장치 의존 자원을 생성 - 중에서 음악만 뺌
 	void DiscardDeviceResource(); //장치 의존 자원을 반납
 	void OnPaint(); //내용을 그리기
 	void OnResize(); //렌더타겟을 resize
@@ -32,6 +36,8 @@ private:
 
 	void power_targeting();
 	void draw_dead_heyho();
+	void YoshiStateController(); 
+
 
 
 private:
@@ -69,6 +75,9 @@ private:
 	vector<Thrwd_Egg> thrwd_eggs;
 	Thrwd_Egg thrwd_egg;
 
+	//사운드
+	CSoundManager* soundManager;
+
 	// 알 위치 계산용
 	float _ploc[5][2];
 	int egg_amount;
@@ -77,6 +86,7 @@ private:
 
 	int count;
 	int frame_count;
+	int count_for_level;
 
 	float block_point[2];
 
@@ -91,6 +101,8 @@ private:
 	int hp;
 	int score;
 	int score_point;//스코어 정산 기준
+
+	int damage_delay; // 1 = 1/60 초
 
 
 
@@ -116,7 +128,8 @@ DemoApp::DemoApp() :
 	pWICFactory(NULL),
 	yoshi(),
 	heyho(),
-	pMapImage(NULL)
+	pMapImage(NULL),
+	soundManager(NULL)
 
 
 
@@ -154,6 +167,9 @@ DemoApp::DemoApp() :
 	hp = 10;
 	score = 0;
 	score_point = 2;
+	
+	damage_delay = 60; //2초
+	count_for_level = 0;
 
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
@@ -171,15 +187,18 @@ DemoApp::~DemoApp()
 	SAFE_RELEASE(pPlayerImage);//image
 	SAFE_RELEASE(pWICFactory);
 
+	SAFE_DELETE(soundManager);
+
 }
 // 응용 프로그램의 원도우를 생성하고, 장치 독립적 자원을 생성함.
 HRESULT DemoApp::Initialize(HINSTANCE hInstance)
 {
-	// 장치 독립적 자원을 생성함.
-	HRESULT hr = CreateAppResource();
-	if (FAILED(hr)) return hr;
 
-	// 윈도우 클래스를 등록함..
+	HRESULT hr = CreateAppResource();
+	if (FAILED(hr))
+		return TRACE(TEXT("CreateAppResource"));
+
+
 	WNDCLASSEX wcex = { sizeof(WNDCLASSEX) };
 	wcex.style = CS_HREDRAW | CS_VREDRAW;
 	wcex.lpfnWndProc = DemoApp::WndProc;
@@ -188,43 +207,85 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
 	wcex.hInstance = hInstance;
 	wcex.hbrBackground = NULL;
 	wcex.lpszMenuName = NULL;
-	wcex.hCursor = LoadCursor(NULL, IDI_APPLICATION);
+	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wcex.lpszClassName = L"DemoApp";
 	RegisterClassEx(&wcex);
 
 	// 윈도우를 생성함.
-	hwnd = CreateWindow(L"DemoApp", L"Yoshi minigame!", WS_OVERLAPPED | WS_SYSMENU, CW_USEDEFAULT, CW_USEDEFAULT , 1080, 720, NULL, NULL, hInstance, this);
+	hwnd = CreateWindow(L"DemoApp", L"Yoshi minigame!", (WS_OVERLAPPED | WS_SYSMENU), CW_USEDEFAULT, CW_USEDEFAULT , 1080, 720, NULL, NULL, hInstance, this);
 	hr = hwnd ? S_OK : E_FAIL;
 	if (!hwnd) return E_FAIL;
+
 
 	ShowWindow(hwnd, SW_SHOWNORMAL);
 	UpdateWindow(hwnd);
 
-
+	// 윈도우가 초기화된 뒤에 hwnd가 유효한 값을 가진 후에 수행하자.
+	// 이유: CSoundManager::Initialize() 에서 유효한 hwnd 값이 필요함.
+	CreateAppResource2();
 
 	return hr;
 }
+
+
+
 // 장치 독립적 자원들을 생성함. 이들 자원의 수명은 응용 프로그램이 종료되기 전까지 유효함.
 HRESULT DemoApp::CreateAppResource()
 {
-
-	DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
-		__uuidof(pDWriteFactory),
-		reinterpret_cast<IUnknown**>(&pDWriteFactory));
-
-	pTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-	pTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-
 	// D2D 팩토리를 생성함.
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &pD2DFactory);
 	if (FAILED(hr)) return hr;
 
+	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&pDWriteFactory));
+	if (FAILED(hr))
+		return TRACE(TEXT("DWriteCreateFactory"));
+
+	hr = pDWriteFactory->CreateTextFormat(L"Verdana", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 20.f, L"", &pTextFormat);
+	if (FAILED(hr))
+		return TRACE(TEXT("CreateTextFormat"));
+	pTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+	pTextFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
 	// WIC 팩토리를 생성함.
 	// 주의: WIC 팩토리를 생성하는 CoCreateInstance 함수가 사용될 때에는 이전에 CoInitialize를 호출해주어야 함.
+	CoInitialize(NULL);
 	hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pWICFactory));
 	if (FAILED(hr)) return hr;
 
+
+
+	
+	
+
 	return hr;
+}
+
+void DemoApp::CreateAppResource2() {
+	//사운드 설정
+	
+	soundManager = new CSoundManager;
+	soundManager->init(hwnd);
+
+	int id;  // 사운드클립 등록번호, id=0부터 시작함.
+	soundManager->add(const_cast<LPTSTR>(L"levelup.wav"), &id); //id=0
+	soundManager->add(const_cast<LPTSTR>(L"main120bpm.wav"), &id); //id=1
+	soundManager->add(const_cast<LPTSTR>(L"main130bpm.wav"), &id); //id=2
+	soundManager->add(const_cast<LPTSTR>(L"main140bpm.wav"), &id); //id=3
+	soundManager->add(const_cast<LPTSTR>(L"main150bpm.wav"), &id); //id=4
+	soundManager->add(const_cast<LPTSTR>(L"main160bpm.wav"), &id); //id=5
+	soundManager->add(const_cast<LPTSTR>(L"hyick.wav"), &id); //id=6
+	soundManager->add(const_cast<LPTSTR>(L"movejung.wav"), &id); //id=7
+	soundManager->add(const_cast<LPTSTR>(L"ppyong.wav"), &id); //id=8
+	soundManager->add(const_cast<LPTSTR>(L"profsmallsound.wav"), &id); //id=9
+	soundManager->add(const_cast<LPTSTR>(L"puck.wav"), &id); //id=10
+	soundManager->add(const_cast<LPTSTR>(L"yoshi-yap.wav"), &id); //id=11
+	soundManager->add(const_cast<LPTSTR>(L"yoshi-hmmph.wav"), &id); //id=12
+	soundManager->add(const_cast<LPTSTR>(L"afterpuck.wav"), &id); //id=13
+	soundManager->add(const_cast<LPTSTR>(L"yoshi-ow.wav"), &id); //id=14
+	soundManager->play(8, FALSE);
+	soundManager->play(1, TRUE);
+
+	
 }
 // 장치 의존적 자원들을 생성함. 장치가 소실되는 경우에는 이들 자원을 다시 생성해야 함.
 HRESULT DemoApp::CreateDeviceResource()
@@ -241,14 +302,13 @@ HRESULT DemoApp::CreateDeviceResource()
 	// D2D 렌더타겟을 생성함.
 	hr = pD2DFactory->CreateHwndRenderTarget(D2D1::RenderTargetProperties(), D2D1::HwndRenderTargetProperties(hwnd, size), &pRenderTarget);
 	if (FAILED(hr)) return hr;
-
 	// 외부 파일로부터 비트맵 객체 pAnotherBitmap를 생성함.
 	if (FAILED(hr)) return hr;
 
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\yoshi\\yoshi_r.png", 528, 720, &pPlayerImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0.png", 245, 245, &pHeyHoImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\egg\\yoshi_egg.png", 256, 255, &pEggImage);
-	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\realBackground.png", 1080,720, &pMapImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\realBackground.png", 1080, 720, &pMapImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\key.png", 1383, 826, &pKeyImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\target.png", 907, 692, &pTargetImageR);
@@ -262,7 +322,7 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh0_l.png", 245, 245, &heyhoImages[3]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh1_l.png", 245, 245, &heyhoImages[4]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh2_l.png", 245, 245, &heyhoImages[5]);
-	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh_down.png", 245, 245, & heyhoImages[6]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh_down.png", 245, 245, &heyhoImages[6]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\monster\\hh_down_l.png", 245, 245, &heyhoImages[7]);
 
 
@@ -300,9 +360,9 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\7_w.png", 426, 522, &whitewords[7]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\8_w.png", 426, 522, &whitewords[8]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\9_w.png", 426, 522, &whitewords[9]);
-	
 
-	//blackbrush 정의
+
+	//blackbrush 정의a
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
 	//redbrush 정의
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red), &pRedbrush);
@@ -310,11 +370,10 @@ HRESULT DemoApp::CreateDeviceResource()
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
 	//heyho 정의
-	heyho = HeyHo(pHeyHoImage, yoshi.getX(),yoshi.getY());
+	heyho = HeyHo(pHeyHoImage, yoshi.getX(), yoshi.getY());
 	heyhos.push_back(heyho);
 	//egg 정의
 	egg = Egg(pEggImage);
-
 	return hr;
 }
 // 장치 의존적 자원들을 반납함. 장치가 소실되면 이들 자원을 다시 생성해야 함.
@@ -328,7 +387,9 @@ void DemoApp::DiscardDeviceResource()
 void DemoApp::OnPaint()
 {
 	//요시 움직임을 처리
-	setYoshiLoc(); 
+	setYoshiLoc();
+	//요시의 변형된 상태를 처리
+	YoshiStateController();
 
 	HRESULT hr = CreateDeviceResource();
 	if (FAILED(hr)) return;
@@ -361,10 +422,23 @@ void DemoApp::OnPaint()
 	}
 
 	//요시 그림
-	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(yoshi.getX(), yoshi.getY()));
-	pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(0.0f, 0.0f,
-		yoshi.isThrowing() ? yoshi.getSize()[0] + 14.0f: yoshi.getSize()[0],
-		yoshi.getSize()[1]));
+	float player_opacity = 1.0f;
+	if (yoshi.getState() == 1) {
+		player_opacity = 0.6f;
+		float sumsum = (yoshi.getAC() < 15) ? ((yoshi.getAC() % 3) * 3.0f) : 0.0f; //(15프레임간) 떨림
+		pRenderTarget->SetTransform(
+			D2D1::Matrix3x2F::Translation(yoshi.getX(), yoshi.getY() - sumsum)
+		);
+		pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(0.0f, 0.0f,
+			yoshi.isThrowing() ? yoshi.getSize()[0] + 14.0f : yoshi.getSize()[0],
+			yoshi.getSize()[1]), player_opacity);
+	}
+	else if (yoshi.getState() == 0) {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(yoshi.getX(), yoshi.getY()));
+		pRenderTarget->DrawBitmap(pPlayerImage, D2D1::RectF(0.0f, 0.0f,
+			yoshi.isThrowing() ? yoshi.getSize()[0] + 14.0f : yoshi.getSize()[0],
+			yoshi.getSize()[1]), player_opacity);
+	}
 
 	//던져진 알 컨트롤
 	ThrwdEggForOneFrame();
@@ -638,7 +712,9 @@ HRESULT LoadBitmapFromFile(ID2D1RenderTarget* pRenderTarget, IWICImagingFactory*
 
 void DemoApp::moveYoshi(char key) {
 
+
 	if (key == 'W') {
+		soundManager->play(8,FALSE);
 		if (yoshi.getY() > DEFAULT_Y_LOC_2F && yoshi.getX() > BLOCK_L_2F && yoshi.getX() < 680.0f) {
 			yoshi.setY(yoshi.getY() - 185.0f);
 			block_point[0] = BLOCK_L_2F;
@@ -646,6 +722,7 @@ void DemoApp::moveYoshi(char key) {
 		}
 	}
 	else if (key == 'S') {
+		soundManager->play(8, FALSE);
 		if (yoshi.getY() < DEFAULT_Y_LOC_1F) {
 			yoshi.setY(DEFAULT_Y_LOC_1F);
 			block_point[0] = BLOCK_L_1F;
@@ -653,10 +730,12 @@ void DemoApp::moveYoshi(char key) {
 		}
 	}
 	else {
+		soundManager->play(7, FALSE);
 		yoshi.setDir(key);
 	}
 }
 void DemoApp::stopYoshi() {
+	soundManager->stop(7);
 	yoshi.setNImg('1');
 	if (!yoshi.isThrowing()) {
 		if (yoshi.getDir() == 'D') {
@@ -681,6 +760,7 @@ void DemoApp::stopThrowing() {
 	yoshi.setDir(' ');
 }
 void DemoApp::setYoshiLoc() {
+
 
 	if (yoshi.getX() <= block_point[0]) {
 		yoshi.setX(block_point[0]+1.0f);
@@ -718,9 +798,26 @@ void DemoApp::setYoshiLoc() {
 		yoshi.setY(DEFAULT_Y_LOC_1F - abs(yoshi.getX() - 500.0f) * 0.10f);
 	}
 
+
+	//헤이호와 부딪혔을 때
+	
+	for (int i = 0; i < heyhos.size(); i++) {
+		HeyHo* hh = &heyhos[i];
+
+		if (yoshi.getState() != 1) {
+			float yudori = 40.0f; //유도리 있게 좀 덜맞게 설정
+			if (hh->isDamaged(yoshi.getX()+yudori, yoshi.getY() +yudori) || hh->isDamaged(yoshi.getX()+ yoshi.getSize()[0] - yudori, yoshi.getY()+ yudori) || hh->isDamaged(yoshi.getX()+ yudori, yoshi.getY() + yoshi.getSize()[1]- yudori) || hh->isDamaged(yoshi.getX() + yoshi.getSize()[0] - yudori, yoshi.getY() + yoshi.getSize()[1]- yudori)) {
+				soundManager->play(14, FALSE);
+				yoshi.setState(1);
+				hp--;
+				break;
+			}
+		}
+		
+	}
+
 }
 void DemoApp::setYoshiImg() {
-
 	if (yoshi.isThrowing()) {
 		if (yoshi.getDirection() == 'D') {
 			pPlayerImage = playerImages[4];
@@ -768,9 +865,16 @@ Player DemoApp::getP() {
 	return yoshi;
 }
 HeyHo DemoApp::createHeyHo(Player p) {
+	if (heyhos.size() == 0|| heyhos.size() == 1) {
+		soundManager->play(9, TRUE);
+	}
 	return HeyHo( pHeyHoImage,p.getX(),p.getY());
 }
 void DemoApp::heyHoForOneFrame() {
+
+	if (heyhos.size() == 0) {
+		soundManager->stop(9);
+	}
 	
 	//헤이호 이미지 변환
 	for ( int i = 0; i < heyhos.size(); i++) {
@@ -782,7 +886,8 @@ void DemoApp::heyHoForOneFrame() {
 			float tmp_y = thrwd_eggs[j].getY();
 			
 			if (heyhos[i].isDamaged(tmp_x, tmp_y)) { //알 맞음!
-			
+				soundManager->play(10, FALSE);
+				soundManager->play(13, FALSE);
 				score += 2;
 				dead_point dp = { (thrwd_eggs[j].getps()* thrwd_eggs[j].getDir()) /1.5f,(thrwd_eggs[j].getpd()) / 1.5f, heyhos[i].getX() ,heyhos[i].getY(), 0};
 				heyho_d_points.push_back(dp);
@@ -878,6 +983,9 @@ void DemoApp::ThrwdEggForOneFrame() {
 }
 
 void DemoApp::yoshi_throw() {
+	soundManager->stop(12);
+	soundManager->play(11, FALSE);
+	soundManager->play(6, FALSE);
 	stopThrowing(); 
 	thrwd_eggs.push_back(Thrwd_Egg(pEggImage, yoshi.getX(), yoshi.getY(), 15.0f, ((yoshi.getDirection()=='A')? - 1.0f:1.0f) * power - 6.0f, yoshi.getDirection() == 'D' ? +1.0f : -1.0f));
 	yoshi.throw_egg();
@@ -885,6 +993,7 @@ void DemoApp::yoshi_throw() {
 
 void DemoApp::power_targeting() {
 
+	soundManager->play(12, FALSE);
 	power += 1.0f * power_dir;
 	if (power > max_power || power < -1.0f * max_power) {
 		power_dir *= -1.0f;
@@ -921,6 +1030,16 @@ void DemoApp::draw_dead_heyho() {
 				* D2D1::Matrix3x2F::Translation(dp->x, dp->y)); //360도 회전하며 날아감
 
 			pRenderTarget->DrawBitmap( ((dp->dirx < 0.0f )? heyhoImages[6] : heyhoImages[7]), D2D1::RectF(0.0f, 0.0f, (heyho.getSize()[0]-5.0f), (heyho.getSize()[1]-10.0f)));
+		}
+	}
+}
+void DemoApp::YoshiStateController() {
+	if (yoshi.getState() == 1) {
+		yoshi.setAC(yoshi.getAC() + 1);
+		if (yoshi.getAC() > damage_delay) {
+			yoshi.setState(0);
+			yoshi.setAC(0);
+			return;
 		}
 	}
 }

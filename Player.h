@@ -6,7 +6,7 @@ class Player
 public:
 
 	Player() {
-
+		
 	}
 	Player(ID2D1Bitmap* img) {
 
@@ -17,7 +17,9 @@ public:
 		dir = ' ';
 		nowImg = '1';
 		direction = 'D';
-		throwing == false;
+		throwing = 0;
+		state = 0; //0:평소, 1:무적
+		attacked_count = 0;
 
 
 	}
@@ -85,13 +87,26 @@ public:
 		return HP;
 	}
 	void ready() {
-		throwing = true;
+		throwing = 1;
 	}
 	void throw_egg() {
-		throwing = false;
+		throwing = 0;
 	}
-	bool isThrowing() {
+	int isThrowing() {
 		return throwing;
+	}
+	int getState() {
+		return state;
+	}
+	void setState( int i ) {
+		state = i;
+	}
+
+	int getAC() {
+		return attacked_count;
+	}
+	void setAC( int i ) {
+		attacked_count = i;
 	}
 private:
 
@@ -102,6 +117,8 @@ private:
 	char nowImg;
 	float HP;
 	bool throwing;
+	int state;
+	int attacked_count;
 
 
 

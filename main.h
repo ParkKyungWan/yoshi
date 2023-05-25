@@ -32,6 +32,7 @@ using namespace std;
 
 
 
+
 // 자원 안전 반환 매크로.
 #define SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=NULL; } }
 // 비트맵을 로드하는 함수 원형
