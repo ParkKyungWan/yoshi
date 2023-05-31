@@ -1,6 +1,12 @@
 
 #include "main.h"
 #include "DirectSoundHelper.h"
+#define LV_TIME_2 60*20 //20초
+#define LV_TIME_3 60*40 //20초
+#define LV_TIME_4 60*70 //30초
+#define LV_TIME_5 60*100 //30초
+#define CLEARTIME 60*130 //30초
+//플레이타임 : 2분 10초
 
 
 class DemoApp
@@ -38,6 +44,8 @@ private:
 	void draw_dead_heyho();
 	void YoshiStateController(); 
 
+	void levelController();
+
 
 
 private:
@@ -63,6 +71,10 @@ private:
 	ID2D1Bitmap* pScoreImage;
 	ID2D1Bitmap* pTargetImageR;
 	ID2D1Bitmap* pTargetImageL;
+	ID2D1Bitmap* lvupImage[4];
+	ID2D1Bitmap* lvoneImage;
+	ID2D1Bitmap* fscoreImage;
+	ID2D1Bitmap* clearImage;
 
 	ID2D1Bitmap* blackwords[10];
 	ID2D1Bitmap* whitewords[10];
@@ -91,6 +103,7 @@ private:
 	float block_point[2];
 
 	int heyho_regen;
+	float heyho_speed;
 	int egg_regen;
 	float egg_depth;
 
@@ -103,6 +116,8 @@ private:
 	int score_point;//스코어 정산 기준
 
 	int damage_delay; // 1 = 1/60 초
+
+	int totalBgm;
 
 
 
@@ -129,7 +144,13 @@ DemoApp::DemoApp() :
 	yoshi(),
 	heyho(),
 	pMapImage(NULL),
-	soundManager(NULL)
+	soundManager(NULL),
+	pHeyHoImage(NULL),
+	pEggImage(NULL),
+	pKeyImage(NULL),
+	pScoreImage(NULL),
+	pTargetImageR(NULL),
+	pTargetImageL(NULL)
 
 
 
@@ -156,9 +177,10 @@ DemoApp::DemoApp() :
 	block_point[0] = BLOCK_L_1F;
 	block_point[1] = BLOCK_R_1F;
 
-	heyho_regen = 4000;
+	heyho_regen = 7000;
 	egg_regen = 3000;
 	egg_depth = 80;
+	egg_amount = 0;
 	max_egg = 3;
 
 	power = 0.0f;
@@ -170,6 +192,8 @@ DemoApp::DemoApp() :
 	
 	damage_delay = 60; //2초
 	count_for_level = 0;
+	totalBgm = 0;
+	heyho_speed = 200.0f;
 
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
@@ -195,8 +219,6 @@ HRESULT DemoApp::Initialize(HINSTANCE hInstance)
 {
 
 	HRESULT hr = CreateAppResource();
-	if (FAILED(hr))
-		return TRACE(TEXT("CreateAppResource"));
 
 
 	WNDCLASSEX wcex = { sizeof(WNDCLASSEX) };
@@ -282,6 +304,7 @@ void DemoApp::CreateAppResource2() {
 	soundManager->add(const_cast<LPTSTR>(L"yoshi-hmmph.wav"), &id); //id=12
 	soundManager->add(const_cast<LPTSTR>(L"afterpuck.wav"), &id); //id=13
 	soundManager->add(const_cast<LPTSTR>(L"yoshi-ow.wav"), &id); //id=14
+	totalBgm = 14;
 	soundManager->play(8, FALSE);
 	soundManager->play(1, TRUE);
 
@@ -313,6 +336,8 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\score.png", 1426, 697, &pScoreImage);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\target.png", 907, 692, &pTargetImageR);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\target_l.png", 907, 692, &pTargetImageL);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\clear.png", 2918, 1489, &clearImage);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\finalscore.png", 2918, 1489, &fscoreImage);
 
 
 	//헤이호 이미지 전체 정의
@@ -361,6 +386,12 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\8_w.png", 426, 522, &whitewords[8]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\fonts\\9_w.png", 426, 522, &whitewords[9]);
 
+	//레벨업 이미지
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv2.png", 1393, 609, &lvupImage[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv3.png", 1393, 609, &lvupImage[1]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv4.png", 1393, 609, &lvupImage[2]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv5.png", 1393, 609, &lvupImage[3]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv1.png", 1393, 609, &lvoneImage);
 
 	//blackbrush 정의a
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
@@ -370,7 +401,7 @@ HRESULT DemoApp::CreateDeviceResource()
 	//yoshi정의
 	yoshi = Player(pPlayerImage);
 	//heyho 정의
-	heyho = HeyHo(pHeyHoImage, yoshi.getX(), yoshi.getY());
+	heyho = HeyHo(pHeyHoImage, yoshi.getX(), yoshi.getY(),heyho_speed);
 	heyhos.push_back(heyho);
 	//egg 정의
 	egg = Egg(pEggImage);
@@ -386,10 +417,6 @@ void DemoApp::DiscardDeviceResource()
 // 그릴 내용을 화면에 그림.
 void DemoApp::OnPaint()
 {
-	//요시 움직임을 처리
-	setYoshiLoc();
-	//요시의 변형된 상태를 처리
-	YoshiStateController();
 
 	HRESULT hr = CreateDeviceResource();
 	if (FAILED(hr)) return;
@@ -407,6 +434,66 @@ void DemoApp::OnPaint()
 	//맵 그림
 	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(0.0f, 0.0f));
 	pRenderTarget->DrawBitmap(pMapImage, D2D1::RectF(0.0f, 0.0f, rc.right - rc.left, rc.bottom - rc.top), 0.84f);
+
+	//클리어했을때
+
+	if ( CLEARTIME <= count_for_level) {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(170.0f, 150.0f));
+		pRenderTarget->DrawBitmap(clearImage, D2D1::RectF(0.0f, 0.0f, 700.0f, 350.0f));
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(470.0f, 300.0f));
+		//몇점
+		ID2D1Bitmap* tmpbit = whitewords[(score - score % 100) / 100];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 72.0f, 120.0f));
+
+		tmpbit = whitewords[(score % 100 - score % 10) / 10];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(30.0f, 0.0f, 72.0f + 30.0f, 120.0f));
+
+		tmpbit = whitewords[score % 10];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(60.0f, 0.0f, 72.0f + 60.0f, 120.0f));
+
+
+		hr = pRenderTarget->EndDraw();
+		return;
+	}
+	//요시가 죽었을 때
+	if (hp <= 0 && hp >= -100) {
+		for (int i = 0; i < totalBgm; i++) {
+			soundManager->stop(i);
+		}
+		hp = -200;
+	}
+	
+	if (hp <= -200) {
+
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(170.0f, 150.0f));
+		pRenderTarget->DrawBitmap(fscoreImage, D2D1::RectF(0.0f, 0.0f, 700.0f, 350.0f));
+
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(470.0f, 300.0f));
+		//몇점
+		ID2D1Bitmap* tmpbit = whitewords[(score - score % 100) / 100];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 72.0f, 120.0f));
+
+		tmpbit = whitewords[(score % 100 - score % 10) / 10];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(30.0f, 0.0f, 72.0f +30.0f, 120.0f));
+
+		tmpbit = whitewords[score % 10];
+		pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(60.0f, 0.0f, 72.0f +60.0f, 120.0f));
+
+
+		hr = pRenderTarget->EndDraw();
+		return;
+
+	}
+
+	//레벨 업 처리
+	count_for_level++;
+	levelController();
+
+	//요시 움직임을 처리
+	setYoshiLoc();
+	//요시의 변형된 상태를 처리
+	YoshiStateController();
+
 
 	//알 그림
 	float addsome = (yoshi.getDirection() == 'D') ? -30.0f : +50.0f; // 알 위치
@@ -479,6 +566,28 @@ void DemoApp::OnPaint()
 	pRenderTarget->DrawBitmap(tmpbit, D2D1::RectF(0.0f, 0.0f, 42.0f, 52.0f));
 
 
+	if (count_for_level < 60*2) {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(300.0f, 230.0f));
+		pRenderTarget->DrawBitmap(lvoneImage, D2D1::RectF(0.0f, 0.0f, 460.0f, 200.0f));
+	}
+	if (count_for_level - LV_TIME_2 < 60 * 2 && count_for_level - LV_TIME_2 > 0) {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(300.0f, 230.0f));
+		pRenderTarget->DrawBitmap(lvupImage[0], D2D1::RectF(0.0f, 0.0f, 460.0f, 200.0f));
+	}
+	if (count_for_level - LV_TIME_3 < 60 * 2 && count_for_level - LV_TIME_3 > 0) {
+		printf("3");
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(300.0f, 230.0f));
+		pRenderTarget->DrawBitmap(lvupImage[1], D2D1::RectF(0.0f, 0.0f, 460.0f, 200.0f));
+	}
+	if (count_for_level - LV_TIME_4 < 60 * 2 && count_for_level - LV_TIME_4 > 0) {
+		printf("4");
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(300.0f, 230.0f));
+		pRenderTarget->DrawBitmap(lvupImage[2], D2D1::RectF(0.0f, 0.0f, 460.0f, 200.0f));
+	}
+	if (count_for_level - LV_TIME_5 < 60 * 2 && count_for_level - LV_TIME_5 > 0) {
+		pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(300.0f, 230.0f));
+		pRenderTarget->DrawBitmap(lvupImage[3], D2D1::RectF(0.0f, 0.0f, 460.0f, 200.0f));
+	}
 	
 	hr = pRenderTarget->EndDraw();
 	if (hr == D2DERR_RECREATE_TARGET)
@@ -868,7 +977,7 @@ HeyHo DemoApp::createHeyHo(Player p) {
 	if (heyhos.size() == 0|| heyhos.size() == 1) {
 		soundManager->play(9, TRUE);
 	}
-	return HeyHo( pHeyHoImage,p.getX(),p.getY());
+	return HeyHo( pHeyHoImage,p.getX(),p.getY(), heyho_speed);
 }
 void DemoApp::heyHoForOneFrame() {
 
@@ -937,7 +1046,7 @@ void DemoApp::heyHoForOneFrame() {
 		if (heyhos[i].getX() < -50 || heyhos[i].getX() > 1130 || heyhos[i].getY() < -50 || heyhos[i].getY() > 770) { //헤이호가 맵 밖으로 넘어감
 			
 			heyhos.erase(heyhos.begin() + i, heyhos.begin() + i + 1);
-			score = (score - score_point * 2 < 0) ? 0 : score - score_point * 2; //헤이호를 놓치면 score 깎임
+			score = (score - score_point < 0) ? 0 : score - score_point; //헤이호를 놓치면 score 깎임
 			i--;
 		}
 
@@ -1042,4 +1151,49 @@ void DemoApp::YoshiStateController() {
 			return;
 		}
 	}
+}
+
+void DemoApp::levelController() {
+	if (count_for_level == LV_TIME_2 ) {
+		soundManager->play(0, FALSE);
+		soundManager->stop(1);
+		soundManager->play(2, TRUE);
+		heyho_regen = 2000;
+		heyho_speed = 100.0f;
+		egg_regen = 2000;
+		SetTimer(hwnd, 2, heyho_regen, NULL);
+		SetTimer(hwnd, 3, egg_regen, NULL);
+	}
+	if (count_for_level == LV_TIME_3) {
+		soundManager->play(0, FALSE);
+		soundManager->stop(2);
+		soundManager->play(3, TRUE);
+		heyho_regen = 1500;
+		egg_regen = 1500;
+		max_egg = 4;
+		SetTimer(hwnd, 2, heyho_regen, NULL);
+		SetTimer(hwnd, 3, egg_regen, NULL);
+	}
+	if (count_for_level == LV_TIME_4) {
+		soundManager->play(0, FALSE);
+		soundManager->stop(3);
+		soundManager->play(4, TRUE);
+		heyho_regen = 1000;
+		egg_regen = 1000;
+		max_egg = 5;
+		SetTimer(hwnd, 2, heyho_regen, NULL);
+		SetTimer(hwnd, 3, egg_regen, NULL);
+	}
+	if (count_for_level == LV_TIME_5) {
+		soundManager->play(0, FALSE);
+		soundManager->stop(4);
+		soundManager->play(5, TRUE);
+		heyho_regen = 1000;
+		heyho_speed = 50.0f;
+		egg_regen = 500;
+		max_egg = 5;
+		SetTimer(hwnd, 2, heyho_regen, NULL);
+		SetTimer(hwnd, 3, egg_regen, NULL);
+	}
+
 }

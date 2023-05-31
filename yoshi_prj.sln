@@ -5,6 +5,8 @@ VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yoshi_prj", "yoshi_prj.vcxproj", "{462FB725-439A-4E29-A60B-28B8A74F8700}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "yoshi_test_setup_1", "..\yoshi_test_setup_1\yoshi_test_setup_1.vdproj", "{295713B3-BD59-4F40-A897-A283DBCD24BE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{462FB725-439A-4E29-A60B-28B8A74F8700}.Release|x64.Build.0 = Release|x64
 		{462FB725-439A-4E29-A60B-28B8A74F8700}.Release|x86.ActiveCfg = Release|Win32
 		{462FB725-439A-4E29-A60B-28B8A74F8700}.Release|x86.Build.0 = Release|Win32
+		{295713B3-BD59-4F40-A897-A283DBCD24BE}.Debug|x64.ActiveCfg = Debug
+		{295713B3-BD59-4F40-A897-A283DBCD24BE}.Debug|x86.ActiveCfg = Debug
+		{295713B3-BD59-4F40-A897-A283DBCD24BE}.Release|x64.ActiveCfg = Release
+		{295713B3-BD59-4F40-A897-A283DBCD24BE}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

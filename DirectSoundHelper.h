@@ -6,6 +6,7 @@
 #pragma comment (lib, "winmm.lib") //for many mmio* functions
 #pragma comment (lib, "dxguid.lib") //for several IID_IDirectSound* symbols
 #include <vector>
+#define TRACE __noop
 
 
 //--------------------------------------------------------------------------------------

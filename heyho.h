@@ -13,7 +13,7 @@ public:
 	HeyHo() {
 
 	}
-	HeyHo(ID2D1Bitmap* img, float px, float py) {
+	HeyHo(ID2D1Bitmap* img, float px, float py, float spd) {
 
 		D2D1_SIZE_F size = img->GetSize();
 		width = size.width / 2;
@@ -39,8 +39,7 @@ public:
 		direction[1] = (py - yloc) ;
 		
 		nowImg = 0;
-		speed = 200.0f;
-
+		speed = spd;
 	
 
 	}

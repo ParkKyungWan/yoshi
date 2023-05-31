@@ -29,6 +29,7 @@ using namespace std;
 #define BLOCK_R_2F 680.0f
 #define DEFAULT_Y_LOC_1F 410.0f
 #define DEFAULT_Y_LOC_2F 208.0f
+#define TRACE __noop
 
 
 
