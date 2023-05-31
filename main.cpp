@@ -46,6 +46,8 @@ private:
 
 	void levelController();
 
+	void explain( int count );
+
 
 
 private:
@@ -119,6 +121,8 @@ private:
 
 	int totalBgm;
 
+	int explain_count; //설명 총 2번
+	ID2D1Bitmap* explainImage[2];
 
 
 
@@ -194,6 +198,8 @@ DemoApp::DemoApp() :
 	count_for_level = 0;
 	totalBgm = 0;
 	heyho_speed = 200.0f;
+
+	explain_count = 2;
 
 }
 // 소멸자. 응용 프로그램의 모든 자원을 반납함.
@@ -392,6 +398,11 @@ HRESULT DemoApp::CreateDeviceResource()
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv4.png", 1393, 609, &lvupImage[2]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv5.png", 1393, 609, &lvupImage[3]);
 	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\map\\lv1.png", 1393, 609, &lvoneImage);
+
+	//초반 설명 이미지
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\ex\\s1.png", 1195, 922, &explainImage[0]);
+	LoadBitmapFromFile(pRenderTarget, pWICFactory, L".\\images\\ex\\s2.png", 1080, 720, &explainImage[1]);
+	
 
 	//blackbrush 정의a
 	pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &pBlackBrush);
@@ -641,90 +652,98 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		pDemoApp->frame_count = 0;
 	}*/
 
-	switch (message)
-	{
-	case WM_SIZE:
-	{
-		pDemoApp->OnResize();
-		return 0;
-	}
+	if (pDemoApp->explain_count <= 0) {
+		switch (message)
+		{
+		case WM_SIZE:
+		{
+			pDemoApp->OnResize();
+			return 0;
+		}
 
-	case WM_DISPLAYCHANGE:
-	{
-		InvalidateRect(hwnd, NULL, FALSE);
-		return 0;
-	}
+		case WM_DISPLAYCHANGE:
+		{
+			InvalidateRect(hwnd, NULL, FALSE);
+			return 0;
+		}
 
-	case WM_PAINT:
-	{
-		pDemoApp->OnPaint();
-		ValidateRect(hwnd, NULL);
-		return 0;
-	}
+		case WM_PAINT:
+		{
+			//pDemoApp->OnPaint();
+			ValidateRect(hwnd, NULL);
+			return 0;
+		}
 
-	case WM_KEYDOWN:
-	{
-		if (wParam == VK_SPACE) {
-			if (pDemoApp->egg_amount > 0&& !pDemoApp->yoshi.isThrowing()) {
-				pDemoApp->egg_amount--;
-				pDemoApp->yoshi.ready();
-				pDemoApp->stopYoshi();
+		case WM_KEYDOWN:
+		{
+			if (wParam == VK_SPACE) {
+				if (pDemoApp->egg_amount > 0 && !pDemoApp->yoshi.isThrowing()) {
+					pDemoApp->egg_amount--;
+					pDemoApp->yoshi.ready();
+					pDemoApp->stopYoshi();
+				}
+				break;
 			}
-			break;
-		}
-		if (!pDemoApp->yoshi.isThrowing()) {
+			if (!pDemoApp->yoshi.isThrowing()) {
 
-			if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
+				if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
 
-				pDemoApp->moveYoshi(wParam);
+					pDemoApp->moveYoshi(wParam);
+				}
 			}
+
+			//pDemoApp->OnPaint();
+			return 0;
 		}
+		case WM_KEYUP:
+		{
+			if (pDemoApp->yoshi.isThrowing() && wParam == VK_SPACE) {
+				pDemoApp->yoshi_throw();
 
-		//pDemoApp->OnPaint();
-		return 0;
-	}
-	case WM_KEYUP:
-	{
-		if (pDemoApp->yoshi.isThrowing()&&wParam == VK_SPACE) {
-			pDemoApp->yoshi_throw();
-
-			break;
-		}
-
-		else if (!pDemoApp->yoshi.isThrowing()) {
-			if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
-				pDemoApp->stopYoshi();
+				break;
 			}
+
+			else if (!pDemoApp->yoshi.isThrowing()) {
+				if (wParam == 'W' || wParam == 'A' || wParam == 'S' || wParam == 'D') {
+					pDemoApp->stopYoshi();
+				}
+			}
+			//pDemoApp->OnPaint();
+			return 0;
 		}
-		//pDemoApp->OnPaint();
-		return 0;
-	}
-	case WM_TIMER:
-	{
-		if (wParam == 1) {
-			pDemoApp->OnPaint();
+		case WM_TIMER:
+		{
+			if (wParam == 1) {
+				pDemoApp->OnPaint();
+			}
+			else if (wParam == 2) {
+				pDemoApp->heyhos.push_back(pDemoApp->createHeyHo(pDemoApp->getP()));
+
+			}
+			else if (wParam == 3) {
+				pDemoApp->eggAction();
+			}
+
+			else if (wParam == 4) {
+				pDemoApp->write_loc();
+			}
+			return 0;
 		}
-		else if (wParam == 2) {
-			pDemoApp->heyhos.push_back(pDemoApp->createHeyHo(pDemoApp->getP()));
+		case WM_DESTROY:
+		{
+			PostQuitMessage(0);
+			return 1;
+		}
 
 		}
-		else if (wParam == 3) {
-			pDemoApp->eggAction();
+	}
+	else {
+		pDemoApp->explain(2 - pDemoApp->explain_count);
+		if (message == WM_KEYDOWN) {
+			pDemoApp->explain_count -= 1;
 		}
 
-		else if (wParam == 4) {
-			pDemoApp->write_loc();
-		}
-		return 0;
 	}
-	case WM_DESTROY:
-	{
-		PostQuitMessage(0);
-		return 1;
-	}
-	
-	}
-
 
 	return DefWindowProc(hwnd, message, wParam, lParam);
 }
@@ -1179,6 +1198,7 @@ void DemoApp::levelController() {
 		soundManager->stop(3);
 		soundManager->play(4, TRUE);
 		heyho_regen = 1000;
+		heyho_regen = 1000;
 		egg_regen = 1000;
 		max_egg = 5;
 		SetTimer(hwnd, 2, heyho_regen, NULL);
@@ -1196,4 +1216,32 @@ void DemoApp::levelController() {
 		SetTimer(hwnd, 3, egg_regen, NULL);
 	}
 
+}
+
+void DemoApp::explain( int count ) {
+
+	HRESULT hr = CreateDeviceResource();
+	if (FAILED(hr)) return;
+
+
+	pRenderTarget->BeginDraw();
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+	pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
+
+	
+	// pBitmapFromFile을 그림.
+	D2D1_SIZE_F size = pMapImage->GetSize();
+	RECT rc;
+	GetClientRect(hwnd, &rc);
+
+	//맵 그림
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(0.0f, 0.0f));
+	pRenderTarget->DrawBitmap(pMapImage, D2D1::RectF(0.0f, 0.0f, rc.right - rc.left, rc.bottom - rc.top), 0.84f);
+	
+	pRenderTarget->SetTransform(D2D1::Matrix3x2F::Translation(130.0f, 40.0f));
+	pRenderTarget->DrawBitmap(explainImage[count], D2D1::RectF(0.0f, 0.0f, 780.0f, 600.0f));
+
+
+	hr = pRenderTarget->EndDraw();
+	return;
 }
